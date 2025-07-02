@@ -1,7 +1,6 @@
 (library
  (name httpr_cohttp)
- (libraries prelude etude httpr_intf httpr_ocurl)
- (modules_without_implementation httpr_cohttp))
+ (libraries prelude etude httpr_intf httpr_ocurl cohttp lwt cohttp-lwt-unix))
 
 (env
  (dev
