@@ -21,6 +21,9 @@ depends: [
   "ocp-index"
   "merlin"
   "httpr_intf"
+  "lwt"
+  "cohttp"
+  "cohttp-lwt-unix"
   "odoc" {with-doc}
 ]
 build: [
