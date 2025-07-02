@@ -17,7 +17,10 @@
    utop
    ocp-index
    merlin
-   httpr_intf)
+   httpr_intf
+   lwt
+   cohttp
+   cohttp-lwt-unix)
  (source (github your-username/your-repo)))
 
 ; Local Variables:
