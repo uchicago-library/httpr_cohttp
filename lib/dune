@@ -1,0 +1,8 @@
+(library
+ (name httpr_cohttp)
+ (libraries prelude etude httpr_intf httpr_ocurl)
+ (modules_without_implementation httpr_cohttp))
+
+(env
+ (dev
+  (flags (:standard -warn-error -A))))

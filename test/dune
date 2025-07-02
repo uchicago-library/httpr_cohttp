@@ -1,0 +1,11 @@
+(test
+ (name test_httpr_cohttp)
+ (libraries httpr_cohttp))
+
+(env
+ (dev
+  (flags (:standard -warn-error -A))))
+
+; Local Variables:
+; mode: dune
+; End:

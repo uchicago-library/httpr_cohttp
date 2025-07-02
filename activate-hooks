@@ -1,0 +1,7 @@
+#! /bin/bash
+
+# note: make sure there's a git repository here before running this
+# script
+
+chmod +x ./githooks/pre-commit
+git config core.hooksPath ./githooks

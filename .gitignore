@@ -1,0 +1,27 @@
+# emacs squiggle files
+**/*~
+
+# compiler detritus
+**/*.annot
+**/*.cmo
+**/*.cma
+**/*.cmi
+**/*.a
+**/*.o
+**/*.cmx
+**/*.cmxs
+**/*.cmxa
+
+# macos detritus
+**/.DS_Store
+
+# merlin stuff
+**/.merlin
+
+# dune stuff
+_build/
+**/*.install
+**/*.exe
+
+# local OPAM switch
+_opam/
