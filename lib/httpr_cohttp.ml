@@ -83,4 +83,27 @@ let cohttp_to_httpr ~max_redirects uri =
     }
 
 let ssl_init _ = ()
-let get () = assert false
+
+(* timeout code snarfed from: *)
+(* https://discuss.ocaml.org/t/timeout-cohttprequests/660 *)
+
+let wrap_with_timeout ?(timeout = max_float) promise =
+  let timeout =
+    let open Lwt.Syntax in
+    let* () = Lwt_unix.sleep timeout in
+    Lwt.return_error `Timed_out
+  in
+  Lwt.pick [ timeout; promise ]
+
+let get ?(timeout = 0) ?(verbose = false) ?(redirects = -1)
+    ?(headers = []) uri =
+  (* TODO: wrap with timeout verbose, headers, finesse zero
+     and negative cases of redirects, as well as zero and
+     negative cases of timeout *)
+  let promise =
+    cohttp_to_httpr ~max_redirects:redirects uri
+  in
+  match Lwt_main.run promise with
+  | exception Failure s -> Error s
+  | exception e -> Error (Printexc.to_string e)
+  | success -> Ok success
