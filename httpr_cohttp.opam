@@ -22,6 +22,7 @@ depends: [
   "merlin"
   "httpr_intf"
   "lwt"
+  "tls-lwt"
   "cohttp"
   "cohttp-lwt-unix"
   "odoc" {with-doc}

@@ -87,23 +87,24 @@ let ssl_init _ = ()
 (* timeout code snarfed from: *)
 (* https://discuss.ocaml.org/t/timeout-cohttprequests/660 *)
 
-let wrap_with_timeout ?(timeout = max_float) promise =
+let wrap_with_timeout ?(timeout = max_int) promised =
+  let open Lwt.Syntax in
   let timeout =
-    let open Lwt.Syntax in
-    let* () = Lwt_unix.sleep timeout in
-    Lwt.return_error `Timed_out
+    let* () = Lwt_unix.sleep (float_of_int timeout) in
+    let exception Timeout of string in
+    let msg = Printf.sprintf "%d seconds" timeout in
+    Lwt.fail (Timeout msg)
   in
-  Lwt.pick [ timeout; promise ]
+  Lwt.pick [ timeout; promised ]
 
-let get ?(timeout = 0) ?(verbose = false) ?(redirects = -1)
-    ?(headers = []) uri =
+let get ?(timeout = 0) ?(verbose = false) ?(redirects = -1) ?(headers = []) uri =
   (* TODO: wrap with timeout verbose, headers, finesse zero
      and negative cases of redirects, as well as zero and
      negative cases of timeout *)
-  let promise =
+  let promised =
     cohttp_to_httpr ~max_redirects:redirects uri
   in
-  match Lwt_main.run promise with
+  match Lwt_main.run (wrap_with_timeout ~timeout:timeout promised)  with
   | exception Failure s -> Error s
   | exception e -> Error (Printexc.to_string e)
   | success -> Ok success
