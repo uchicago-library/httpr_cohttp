@@ -19,6 +19,7 @@
    merlin
    httpr_intf
    lwt
+   tls-lwt
    cohttp
    cohttp-lwt-unix)
  (source (github your-username/your-repo)))
