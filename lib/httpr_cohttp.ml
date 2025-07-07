@@ -15,42 +15,40 @@ and follow_redirect ~max_redirects request_uri
     then Cohttp_lwt.Body.drain_body body
     else Lwt.return_unit
   in
-  match status with
-  | `OK -> Lwt.return (response, body)
-  | `Permanent_redirect | `Moved_permanently ->
+  match (status, max_redirects) with
+  | _, 0 -> Lwt.return (response, body)
+  | `OK, _ -> Lwt.return (response, body)
+  | `Permanent_redirect, _ | `Moved_permanently, _ ->
     handle_redirect ~permanent:true ~max_redirects
       request_uri response
-  | `Found | `Temporary_redirect ->
+  | `Found, _ | `Temporary_redirect, _ ->
     handle_redirect ~permanent:false ~max_redirects
       request_uri response
-  | `Not_found | `Gone -> failwith "Not found"
-  | status ->
+  | `Not_found, _ | `Gone, _ -> failwith "Not found"
+  | status, _ ->
     Printf.ksprintf failwith "Unhandled status: %s"
       (Cohttp.Code.string_of_status status)
 
 and handle_redirect ~permanent ~max_redirects request_uri
     response =
-  if max_redirects <= 0
-  then failwith "Too many redirects"
-  else
-    let headers = Http.Response.headers response in
-    let location = Http.Header.get headers "location" in
-    match location with
-    | None -> failwith "Redirection without Location header"
-    | Some url ->
-      let open Lwt.Syntax in
-      let uri = Uri.of_string url in
-      let* () =
-        if permanent
-        then
-          Logs_lwt.warn (fun m ->
-              m "Permanent redirection from %s to %s"
-                (Uri.to_string request_uri)
-                url )
-        else Lwt.return_unit
-      in
-      http_get_and_follow uri
-        ~max_redirects:(max_redirects - 1)
+  let headers = Http.Response.headers response in
+  let location = Http.Header.get headers "location" in
+  match location with
+  | None -> failwith "Redirection without Location header"
+  | Some url ->
+    let open Lwt.Syntax in
+    let uri = Uri.of_string url in
+    let* () =
+      if permanent
+      then
+        Logs_lwt.warn (fun m ->
+            m "Permanent redirection from %s to %s"
+              (Uri.to_string request_uri)
+              url )
+      else Lwt.return_unit
+    in
+    http_get_and_follow uri
+      ~max_redirects:(max_redirects - 1)
 
 let cohttp_to_httpr ~max_redirects uri =
   let open Cohttp in
@@ -99,16 +97,15 @@ let wrap_with_timeout ?(timeout = max_int) promised =
 
 let get ?(timeout = 0) ?(verbose = false) ?(redirects = -1)
     ?(headers = []) uri =
-  (* TODO: finesse redirects *)
-  (* TODO: finesse zero case of timeout *)
-  (* TODO: finesse negative case of timeout *)
   (* TODO: do headers *)
   (* TODO: do verbose *)
+  let timeout' = if timeout = 0 then max_int else timeout in
   let promised =
     cohttp_to_httpr ~max_redirects:redirects uri
   in
   match
-    Lwt_main.run (wrap_with_timeout ~timeout promised)
+    Lwt_main.run
+      (wrap_with_timeout ~timeout:timeout' promised)
   with
   | exception Failure s -> Error s
   | exception e -> Error (Printexc.to_string e)
