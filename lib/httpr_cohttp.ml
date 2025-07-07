@@ -1,4 +1,4 @@
-(* the redirect-chasing code was cribbed from: *)
+(* the redirect-chasing code is adapted from: *)
 (* https://github.com/mirage/ocaml-cohttp/blob/main/README.md#dealing-with-redirects *)
 
 let rec http_get_and_follow ~max_redirects uri =
@@ -99,9 +99,11 @@ let wrap_with_timeout ?(timeout = max_int) promised =
 
 let get ?(timeout = 0) ?(verbose = false) ?(redirects = -1)
     ?(headers = []) uri =
-  (* TODO: wrap with timeout verbose, headers, finesse zero
-     and negative cases of redirects, as well as zero and
-     negative cases of timeout *)
+  (* TODO: finesse redirects *)
+  (* TODO: finesse zero case of timeout *)
+  (* TODO: finesse negative case of timeout *)
+  (* TODO: do headers *)
+  (* TODO: do verbose *)
   let promised =
     cohttp_to_httpr ~max_redirects:redirects uri
   in
