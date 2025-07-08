@@ -1,6 +1,8 @@
 (* the redirect-chasing code is adapted from: *)
 (* https://github.com/mirage/ocaml-cohttp/blob/main/README.md#dealing-with-redirects *)
 
+module Response = Httpr_intf.Response
+
 let empty_headers = Http.Header.init ()
 
 let rec http_get_and_follow ~max_redirects ~req_headers uri
@@ -103,23 +105,70 @@ let wrap_with_timeout ?(timeout = max_int) promised =
   in
   Lwt.pick [ timeout; promised ]
 
-let get_promise ?(timeout = 0) ?(verbose = false)
+let prep_headers lst =
+  let each_header str =
+    let exception Invalid_headers in
+    match Prelude.String.split ~sep:":" str with
+    | [ k; v ] -> Lwt.return Stdlib.String.(trim k, trim v)
+    | _ -> Lwt.fail Invalid_headers
+  in
+  let open Lwt.Syntax in
+  let+ hdrz = Lwt_list.map_p each_header lst in
+  Http.Header.of_list hdrz
+
+let get_promise_no_timeout ?(verbose = false)
     ?(redirects = -1) ?(headers = []) uri =
+  let open Lwt.Syntax in
   let _ = verbose in
-  let req_headers = Http.Header.of_list headers in
-  let timeout' = if timeout = 0 then max_int else timeout in
-  let promised =
+  let* req_headers = prep_headers headers in
+  cohttp_to_httpr ~max_redirects:redirects ~req_headers uri
+
+let get_promise_blob_no_timeout ?(verbose = false)
+    ?(redirects = -1) ?(headers = []) (blob, uri) =
+  let open Lwt.Syntax in
+  let _ = verbose in
+  let* req_headers = prep_headers headers in
+  let+ resp =
     cohttp_to_httpr ~max_redirects:redirects ~req_headers
       uri
   in
+  (blob, resp)
+
+let get_promise ?(timeout = 0) ?(verbose = false)
+    ?(redirects = -1) ?(headers = []) uri =
+  let _ = verbose in
+  let timeout' = if timeout = 0 then max_int else timeout in
+  let promised =
+    get_promise_no_timeout ~verbose ~redirects ~headers uri
+  in
   wrap_with_timeout ~timeout:timeout' promised
+
+let execute promise =
+  match Lwt_main.run promise with
+  | exception e -> Error (Printexc.to_string e)
+  | success -> Ok success
 
 let get ?(timeout = 0) ?(verbose = false) ?(redirects = -1)
     ?(headers = []) uri =
   let _ = verbose in
-  match
-    Lwt_main.run
-      (get_promise ~timeout ~verbose ~redirects ~headers uri)
-  with
-  | exception e -> Error (Printexc.to_string e)
-  | success -> Ok success
+  execute
+    (get_promise ~timeout ~verbose ~redirects ~headers uri)
+
+let parallel_get f ?(timeout = 0) lst =
+  let timeout' = if timeout = 0 then max_int else timeout in
+  let promise = Lwt_list.map_p f lst in
+  execute (wrap_with_timeout ~timeout:timeout' promise)
+
+let gets ?(timeout = 0) ?(verbose = false) ?(redirects = -1)
+    ?(headers = []) uris =
+  let promise =
+    get_promise_no_timeout ~verbose ~redirects ~headers
+  in
+  parallel_get promise ~timeout uris
+
+let gets_keyed ?(timeout = 0) ?(verbose = false)
+    ?(redirects = -1) ?(headers = []) pairs =
+  let promise =
+    get_promise_blob_no_timeout ~verbose ~redirects ~headers
+  in
+  parallel_get promise ~timeout pairs
