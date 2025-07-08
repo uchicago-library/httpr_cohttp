@@ -1,12 +1,17 @@
 (* the redirect-chasing code is adapted from: *)
 (* https://github.com/mirage/ocaml-cohttp/blob/main/README.md#dealing-with-redirects *)
 
-let rec http_get_and_follow ~max_redirects uri =
-  let open Lwt.Syntax in
-  let* ans = Cohttp_lwt_unix.Client.get uri in
-  follow_redirect ~max_redirects uri ans
+let empty_headers = Http.Header.init ()
 
-and follow_redirect ~max_redirects request_uri
+let rec http_get_and_follow ~max_redirects ~req_headers uri
+    =
+  let open Lwt.Syntax in
+  let* ans =
+    Cohttp_lwt_unix.Client.get ~headers:req_headers uri
+  in
+  follow_redirect ~max_redirects ~req_headers uri ans
+
+and follow_redirect ~max_redirects ~req_headers request_uri
     (response, body) =
   let open Lwt.Syntax in
   let status = Http.Response.status response in
@@ -20,17 +25,17 @@ and follow_redirect ~max_redirects request_uri
   | `OK, _ -> Lwt.return (response, body)
   | `Permanent_redirect, _ | `Moved_permanently, _ ->
     handle_redirect ~permanent:true ~max_redirects
-      request_uri response
+      ~req_headers request_uri response
   | `Found, _ | `Temporary_redirect, _ ->
     handle_redirect ~permanent:false ~max_redirects
-      request_uri response
+      ~req_headers request_uri response
   | `Not_found, _ | `Gone, _ -> failwith "Not found"
   | status, _ ->
     Printf.ksprintf failwith "Unhandled status: %s"
       (Cohttp.Code.string_of_status status)
 
-and handle_redirect ~permanent ~max_redirects request_uri
-    response =
+and handle_redirect ~permanent ~max_redirects ~req_headers
+    request_uri response =
   let headers = Http.Response.headers response in
   let location = Http.Header.get headers "location" in
   match location with
@@ -47,14 +52,14 @@ and handle_redirect ~permanent ~max_redirects request_uri
               url )
       else Lwt.return_unit
     in
-    http_get_and_follow uri
+    http_get_and_follow ~req_headers uri
       ~max_redirects:(max_redirects - 1)
 
-let cohttp_to_httpr ~max_redirects uri =
+let cohttp_to_httpr ~max_redirects ~req_headers uri =
   let open Cohttp in
   let open Lwt.Syntax in
   let* resp, body_stream =
-    http_get_and_follow ~max_redirects uri
+    http_get_and_follow ~max_redirects ~req_headers uri
   in
   let headers =
     let header_alist = resp.headers |> Header.to_list in
@@ -90,23 +95,31 @@ let wrap_with_timeout ?(timeout = max_int) promised =
   let timeout =
     let* () = Lwt_unix.sleep (float_of_int timeout) in
     let exception Timeout of string in
-    let msg = Printf.sprintf "%d seconds" timeout in
+    let noun =
+      if timeout = 1 then "second" else "seconds"
+    in
+    let msg = Printf.sprintf "%d %s" timeout noun in
     Lwt.fail (Timeout msg)
   in
   Lwt.pick [ timeout; promised ]
 
-let get ?(timeout = 0) ?(verbose = false) ?(redirects = -1)
-    ?(headers = []) uri =
-  (* TODO: do headers *)
-  (* TODO: do verbose *)
+let get_promise ?(timeout = 0) ?(verbose = false)
+    ?(redirects = -1) ?(headers = []) uri =
+  let _ = verbose in
+  let req_headers = Http.Header.of_list headers in
   let timeout' = if timeout = 0 then max_int else timeout in
   let promised =
-    cohttp_to_httpr ~max_redirects:redirects uri
+    cohttp_to_httpr ~max_redirects:redirects ~req_headers
+      uri
   in
+  wrap_with_timeout ~timeout:timeout' promised
+
+let get ?(timeout = 0) ?(verbose = false) ?(redirects = -1)
+    ?(headers = []) uri =
+  let _ = verbose in
   match
     Lwt_main.run
-      (wrap_with_timeout ~timeout:timeout' promised)
+      (get_promise ~timeout ~verbose ~redirects ~headers uri)
   with
-  | exception Failure s -> Error s
   | exception e -> Error (Printexc.to_string e)
   | success -> Ok success
