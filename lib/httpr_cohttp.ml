@@ -92,8 +92,8 @@ let ssl_init _ = ()
 (* timeout code adapted from: *)
 (* https://discuss.ocaml.org/t/timeout-cohttprequests/660 *)
 
-let wrap_with_timeout ?(timeout = max_int) promised =
-  let open Lwt.Syntax in
+let wrap_with_timeout ?(timeout = max_int) result_promise =
+  let open Lwt_result.Syntax in
   let timeout =
     let* () = Lwt_unix.sleep (float_of_int timeout) in
     let exception Timeout of string in
@@ -103,7 +103,7 @@ let wrap_with_timeout ?(timeout = max_int) promised =
     let msg = Printf.sprintf "%d %s" timeout noun in
     Lwt.fail (Timeout msg)
   in
-  Lwt.pick [ timeout; promised ]
+  Lwt.pick [ timeout; result_promise ]
 
 let prep_headers lst =
   let each_header str =
