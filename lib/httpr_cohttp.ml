@@ -122,24 +122,6 @@ let get_promise_no_timeout ?(verbose = false)
       get_promise_no_timeout_exn ~redirects ~headers uri )
   |> Lwt_result.map_error Printexc.to_string
 
-let get_promise_blob_no_timeout_exn ?(redirects = -1)
-    ?(headers = []) (blob, uri) =
-  let open Lwt.Syntax in
-  let req_headers = prep_headers headers in
-  let+ resp =
-    cohttp_to_httpr ~max_redirects:redirects ~req_headers
-      uri
-  in
-  (blob, resp)
-
-let get_promise_blob_no_timeout ?(verbose = false)
-    ?(redirects = -1) ?(headers = []) pair =
-  let _ = verbose in
-  Lwt_result.catch (fun () ->
-      get_promise_blob_no_timeout_exn ~redirects ~headers
-        pair )
-  |> Lwt_result.map_error Printexc.to_string
-
 let get_promise ?(timeout = 0) ?(verbose = false)
     ?(redirects = -1) ?(headers = []) uri =
   let _ = verbose in
@@ -163,19 +145,32 @@ let get ?(timeout = 0) ?(verbose = false) ?(redirects = -1)
     (get_promise ~timeout ~verbose ~redirects ~headers uri)
   |> Result.join
 
-(* let parallel_get f ?(timeout = 0) lst = *)
-(*   assert false *)
+let gets_promise ?(timeout = 0) ?(verbose = false)
+    ?(redirects = -1) ?(headers = []) uris =
+  let _ = verbose in
+  let g =
+    get_promise ~timeout ~verbose ~redirects ~headers
+  in
+  Lwt_list.map_p g uris
 
-(* let gets ?(timeout = 0) ?(verbose = false) ?(redirects = -1) *)
-(*     ?(headers = []) uris = *)
-(*   let promise = *)
-(*     get_promise_no_timeout ~verbose ~redirects ~headers *)
-(*   in *)
-(*   parallel_get promise ~timeout uris *)
+let gets ?(timeout = 0) ?(verbose = false) ?(redirects = -1)
+    ?(headers = []) uris =
+  execute
+    (gets_promise ~timeout ~verbose ~redirects ~headers uris)
 
-(* let gets_keyed ?(timeout = 0) ?(verbose = false) *)
-(*     ?(redirects = -1) ?(headers = []) pairs = *)
-(*   let promise = *)
-(*     get_promise_blob_no_timeout ~verbose ~redirects ~headers *)
-(*   in *)
-(*   parallel_get promise ~timeout pairs *)
+let gets_keyed_promise ?(timeout = 0) ?(verbose = false)
+    ?(redirects = -1) ?(headers = []) pairs =
+  let helper (blob, uri) =
+    let open Lwt_result.Syntax in
+    let+ resp =
+      get_promise ~timeout ~verbose ~redirects ~headers uri
+    in
+    (blob, resp)
+  in
+  Lwt_list.map_p helper pairs
+
+let gets_keyed ?(timeout = 0) ?(verbose = false)
+    ?(redirects = -1) ?(headers = []) pairs =
+  execute
+    (gets_keyed_promise ~timeout ~verbose ~redirects
+       ~headers pairs )
