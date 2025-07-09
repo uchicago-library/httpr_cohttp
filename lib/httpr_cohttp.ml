@@ -88,94 +88,115 @@ let cohttp_to_httpr ~max_redirects ~req_headers uri =
     }
 
 let ssl_init _ = ()
+let long_timeout = Int32.(max_int |> to_int)
 
-(* timeout code adapted from: *)
-(* https://discuss.ocaml.org/t/timeout-cohttprequests/660 *)
+let wrap_with_timeout ?(timeout = long_timeout)
+    result_promise =
+  let noun = if timeout = 1 then "second" else "seconds" in
+  let msg = Printf.sprintf "%d %s" timeout noun in
+  let open Lwt.Infix in
+  Lwt.pick
+    [ result_promise;
+      ( Lwt_unix.sleep (float_of_int timeout)
+      >|= fun () -> Error msg )
+    ]
 
-let wrap_with_timeout ?(timeout = max_int) promised =
-  let open Lwt.Syntax in
-  let timeout =
-    let* () = Lwt_unix.sleep (float_of_int timeout) in
-    let exception Timeout of string in
-    let noun =
-      if timeout = 1 then "second" else "seconds"
-    in
-    let msg = Printf.sprintf "%d %s" timeout noun in
-    Lwt.fail (Timeout msg)
-  in
-  Lwt.pick [ timeout; promised ]
+(* let* promise = f *)
+(* let* promise = result_promise in *)
+(* let compute ~timeout ~f = *)
+(*   [ *)
+(*     (f () >|= fun v -> `Done v) *)
+(*   ; (Lwt_unix.sleep timeout >|= fun () -> `Timeout) *)
+(*   ] *)
+(* in *)
+
+(* let open Lwt_result.Syntax in *)
+(* let timeout = *)
+(*   let* () = Lwt_unix.sleep (float_of_int timeout) in *)
+(*   let exception Timeout of string in *)
+(* let noun = *)
+(*   if timeout = 1 then "second" else "seconds" *)
+(* in *)
+(* let msg = Printf.sprintf "%d %s" timeout noun in *)
+(*   Lwt.fail (Timeout msg) *)
+(* in *)
+(* Lwt.pick [ timeout; promised ] *)
 
 let prep_headers lst =
   let each_header str =
-    let exception Invalid_headers in
     match Prelude.String.split ~sep:":" str with
-    | [ k; v ] -> Lwt.return Stdlib.String.(trim k, trim v)
-    | _ -> Lwt.fail Invalid_headers
+    | [ k; v ] -> Ok Stdlib.String.(trim k, trim v)
+    | _ -> Error "invalid headers"
   in
-  let open Lwt.Syntax in
-  let+ hdrz = Lwt_list.map_p each_header lst in
-  Http.Header.of_list hdrz
+  let open Etude.Result.Make (String) in
+  oks (List.map each_header lst) |> Http.Header.of_list
+
+let get_promise_no_timeout_exn ?(redirects = -1)
+    ?(headers = []) uri =
+  let req_headers = prep_headers headers in
+  cohttp_to_httpr ~max_redirects:redirects ~req_headers uri
 
 let get_promise_no_timeout ?(verbose = false)
     ?(redirects = -1) ?(headers = []) uri =
-  let open Lwt.Syntax in
   let _ = verbose in
-  let* req_headers = prep_headers headers in
-  cohttp_to_httpr ~max_redirects:redirects ~req_headers uri
+  Lwt_result.catch (fun () ->
+      get_promise_no_timeout_exn ~redirects ~headers uri )
+  |> Lwt_result.map_error Printexc.to_string
 
-let get_promise_blob_no_timeout ?(verbose = false)
-    ?(redirects = -1) ?(headers = []) (blob, uri) =
+let get_promise_blob_no_timeout_exn ?(redirects = -1)
+    ?(headers = []) (blob, uri) =
   let open Lwt.Syntax in
-  let _ = verbose in
-  let* req_headers = prep_headers headers in
+  let req_headers = prep_headers headers in
   let+ resp =
     cohttp_to_httpr ~max_redirects:redirects ~req_headers
       uri
   in
   (blob, resp)
 
+let get_promise_blob_no_timeout ?(verbose = false)
+    ?(redirects = -1) ?(headers = []) pair =
+  let _ = verbose in
+  Lwt_result.catch (fun () ->
+      get_promise_blob_no_timeout_exn ~redirects ~headers
+        pair )
+  |> Lwt_result.map_error Printexc.to_string
+
 let get_promise ?(timeout = 0) ?(verbose = false)
     ?(redirects = -1) ?(headers = []) uri =
   let _ = verbose in
-  let promised =
+  let timeout' =
+    if timeout <= 0 then long_timeout else timeout
+  in
+  let promise =
     get_promise_no_timeout ~verbose ~redirects ~headers uri
   in
-  wrap_with_timeout ~timeout promised
+  wrap_with_timeout ~timeout:timeout' promise
 
 let execute promise =
   match Lwt_main.run promise with
   | exception e -> Error (Printexc.to_string e)
   | success -> Ok success
 
-let long_timeout = Int32.(max_int |> to_int)
-
 let get ?(timeout = 0) ?(verbose = false) ?(redirects = -1)
     ?(headers = []) uri =
-  let timeout' =
-    if timeout <= 0 then long_timeout else timeout
-  in
   let _ = verbose in
   execute
-    (get_promise ~timeout:timeout' ~verbose ~redirects
-       ~headers uri )
+    (get_promise ~timeout ~verbose ~redirects ~headers uri)
+  |> Result.join
 
-let parallel_get f ?(timeout = 0) lst =
-  let timeout' =
-    if timeout <= 0 then long_timeout else timeout
-  in
-  let promise = Lwt_list.map_p f lst in
-  execute (wrap_with_timeout ~timeout:timeout' promise)
+(* let parallel_get f ?(timeout = 0) lst = *)
+(*   assert false *)
 
-let gets ?(timeout = 0) ?(verbose = false) ?(redirects = -1)
-    ?(headers = []) uris =
-  let promise =
-    get_promise_no_timeout ~verbose ~redirects ~headers
-  in
-  parallel_get promise ~timeout uris
+(* let gets ?(timeout = 0) ?(verbose = false) ?(redirects = -1) *)
+(*     ?(headers = []) uris = *)
+(*   let promise = *)
+(*     get_promise_no_timeout ~verbose ~redirects ~headers *)
+(*   in *)
+(*   parallel_get promise ~timeout uris *)
 
-let gets_keyed ?(timeout = 0) ?(verbose = false)
-    ?(redirects = -1) ?(headers = []) pairs =
-  let promise =
-    get_promise_blob_no_timeout ~verbose ~redirects ~headers
-  in
-  parallel_get promise ~timeout pairs
+(* let gets_keyed ?(timeout = 0) ?(verbose = false) *)
+(*     ?(redirects = -1) ?(headers = []) pairs = *)
+(*   let promise = *)
+(*     get_promise_blob_no_timeout ~verbose ~redirects ~headers *)
+(*   in *)
+(*   parallel_get promise ~timeout pairs *)
