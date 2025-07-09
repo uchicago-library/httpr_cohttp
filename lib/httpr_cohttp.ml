@@ -93,34 +93,13 @@ let long_timeout = Int32.(max_int |> to_int)
 let wrap_with_timeout ?(timeout = long_timeout)
     result_promise =
   let noun = if timeout = 1 then "second" else "seconds" in
-  let msg = Printf.sprintf "%d %s" timeout noun in
+  let msg = Printf.sprintf "timeout: %d %s" timeout noun in
   let open Lwt.Infix in
   Lwt.pick
     [ result_promise;
       ( Lwt_unix.sleep (float_of_int timeout)
       >|= fun () -> Error msg )
     ]
-
-(* let* promise = f *)
-(* let* promise = result_promise in *)
-(* let compute ~timeout ~f = *)
-(*   [ *)
-(*     (f () >|= fun v -> `Done v) *)
-(*   ; (Lwt_unix.sleep timeout >|= fun () -> `Timeout) *)
-(*   ] *)
-(* in *)
-
-(* let open Lwt_result.Syntax in *)
-(* let timeout = *)
-(*   let* () = Lwt_unix.sleep (float_of_int timeout) in *)
-(*   let exception Timeout of string in *)
-(* let noun = *)
-(*   if timeout = 1 then "second" else "seconds" *)
-(* in *)
-(* let msg = Printf.sprintf "%d %s" timeout noun in *)
-(*   Lwt.fail (Timeout msg) *)
-(* in *)
-(* Lwt.pick [ timeout; promised ] *)
 
 let prep_headers lst =
   let each_header str =
