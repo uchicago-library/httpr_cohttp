@@ -42,4 +42,3 @@ build: [
   ]
 ]
 dev-repo: "git+https://github.com/uchicago-library/httpr_cohttp.git"
-url { src: "git+https://github.com/uchicago-library/httpr_cohttp.git" }
