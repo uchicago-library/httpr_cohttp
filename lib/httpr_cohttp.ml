@@ -3,8 +3,6 @@
 
 module Response = Httpr_intf.Response
 
-let empty_headers = Http.Header.init ()
-
 let rec http_get_and_follow ~max_redirects ~req_headers uri
     =
   let open Lwt.Syntax in
@@ -174,3 +172,11 @@ let gets_keyed ?(timeout = 0) ?(verbose = false)
   execute
     (gets_keyed_promise ~timeout ~verbose ~redirects
        ~headers pairs )
+
+module Lwt = struct
+  module Response = Response
+
+  let get = get_promise
+  let gets = gets_promise
+  let gets_keyed = gets_promise
+end
