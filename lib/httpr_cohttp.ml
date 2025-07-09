@@ -147,10 +147,12 @@ let execute promise =
   | exception e -> Error (Printexc.to_string e)
   | success -> Ok success
 
+let long_timeout = Int32.(max_int |> to_int)
+
 let get ?(timeout = 0) ?(verbose = false) ?(redirects = -1)
     ?(headers = []) uri =
   let timeout' =
-    if timeout <= 0 then 99999999 else timeout
+    if timeout <= 0 then long_timeout else timeout
   in
   let _ = verbose in
   execute
@@ -159,7 +161,7 @@ let get ?(timeout = 0) ?(verbose = false) ?(redirects = -1)
 
 let parallel_get f ?(timeout = 0) lst =
   let timeout' =
-    if timeout <= 0 then 99999999 else timeout
+    if timeout <= 0 then long_timeout else timeout
   in
   let promise = Lwt_list.map_p f lst in
   execute (wrap_with_timeout ~timeout:timeout' promise)
