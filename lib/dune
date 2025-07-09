@@ -1,6 +1,6 @@
 (library
  (name httpr_cohttp)
- (libraries prelude etude httpr_intf httpr_ocurl cohttp lwt cohttp-lwt-unix))
+ (libraries prelude etude httpr_intf cohttp lwt cohttp-lwt-unix))
 
 (env
  (dev
