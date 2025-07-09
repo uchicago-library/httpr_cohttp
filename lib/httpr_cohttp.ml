@@ -137,11 +137,10 @@ let get_promise_blob_no_timeout ?(verbose = false)
 let get_promise ?(timeout = 0) ?(verbose = false)
     ?(redirects = -1) ?(headers = []) uri =
   let _ = verbose in
-  let timeout' = if timeout = 0 then max_int else timeout in
   let promised =
     get_promise_no_timeout ~verbose ~redirects ~headers uri
   in
-  wrap_with_timeout ~timeout:timeout' promised
+  wrap_with_timeout ~timeout promised
 
 let execute promise =
   match Lwt_main.run promise with
@@ -150,12 +149,18 @@ let execute promise =
 
 let get ?(timeout = 0) ?(verbose = false) ?(redirects = -1)
     ?(headers = []) uri =
+  let timeout' =
+    if timeout <= 0 then 99999999 else timeout
+  in
   let _ = verbose in
   execute
-    (get_promise ~timeout ~verbose ~redirects ~headers uri)
+    (get_promise ~timeout:timeout' ~verbose ~redirects
+       ~headers uri )
 
 let parallel_get f ?(timeout = 0) lst =
-  let timeout' = if timeout = 0 then max_int else timeout in
+  let timeout' =
+    if timeout <= 0 then 99999999 else timeout
+  in
   let promise = Lwt_list.map_p f lst in
   execute (wrap_with_timeout ~timeout:timeout' promise)
 
