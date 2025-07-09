@@ -24,6 +24,6 @@ module Lwt : sig
     ?verbose:bool ->
     ?redirects:int ->
     ?headers:string list ->
-    Uri.t list ->
-    (Response.t, string) result list Lwt.t
+    ('a * Uri.t) list ->
+    ('a * Response.t, string) result list Lwt.t
 end

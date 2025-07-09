@@ -178,5 +178,5 @@ module Lwt = struct
 
   let get = get_promise
   let gets = gets_promise
-  let gets_keyed = gets_promise
+  let gets_keyed = gets_keyed_promise
 end
