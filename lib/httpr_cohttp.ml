@@ -138,14 +138,12 @@ let execute promise =
 
 let get ?(timeout = 0) ?(verbose = false) ?(redirects = -1)
     ?(headers = []) uri =
-  let _ = verbose in
   execute
     (get_promise ~timeout ~verbose ~redirects ~headers uri)
   |> Result.join
 
 let gets_promise ?(timeout = 0) ?(verbose = false)
     ?(redirects = -1) ?(headers = []) uris =
-  let _ = verbose in
   let g =
     get_promise ~timeout ~verbose ~redirects ~headers
   in
