@@ -1,5 +1,4 @@
 (executable
- (public_name httpr_cohttp)
  (name httpr_cohttp)
  (promote (until-clean))
  (libraries camlp-streams prelude etude httpr_cohttp))
